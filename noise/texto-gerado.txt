@@ -1,0 +1,29 @@
+Texto Reconhecido:
+'ts
+
+Will
+
+Tesseract
+
+a!
+
+à
+
+aa
+
+é
+
+ail With
+
+F
+
+
+Noisy
+
+2
+
+Backgrounds
+
+gy
+
+'

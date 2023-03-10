@@ -1,0 +1,112 @@
+import cv2
+import pytesseract
+import numpy as np
+
+# Definindo o path do arquivo contendo a imagem que deseja realizar o OCR
+img_path = "textocr.png"
+
+# Etapa 1 - Pré-processamento da imagem
+img = cv2.imread(img_path)
+
+# Convertendo a imagem para escala de cinza
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+cv2.imwrite("gray.png", gray)
+
+# Aplicando a técnica de threshold para binarizar a imagem
+thresh = cv2.threshold(
+    gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+
+cv2.imwrite("thresh.png", thresh)
+
+# Aplicando a operação de abertura para remover ruídos na imagem binarizada
+kernel = np.ones((2, 2), np.uint8)
+opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+
+cv2.imwrite("treated.png", opening)
+
+# kernel = np.ones((3, 7), np.uint8)
+# opening = cv2.morphologyEx(thresh, cv2.MORPH_DILATE, kernel, iterations=1)
+
+# cv2.imwrite("treated2.png", opening)
+
+# Etapa 2 - Localização do texto
+# Realizando a detecção de contornos na imagem
+unsorted_contours, hierarchy = cv2.findContours(
+    opening, cv2.MORPH_DILATE, cv2.CHAIN_APPROX_SIMPLE)
+raw_contours = sorted(unsorted_contours, key=lambda x: cv2.boundingRect(x)[1])
+contours = []
+for cnt in raw_contours:
+    x, y, w, h = cv2.boundingRect(cnt)
+    if w < 20 and h < 20:
+        continue
+    contours.append(cnt)
+
+# Criando uma cópia da imagem original para desenhar os retângulos delimitando o texto
+img_contours = img.copy()
+
+# Iterando pelos contornos encontrados na imagem
+for cnt in contours:
+    x, y, w, h = cv2.boundingRect(cnt)
+    cv2.rectangle(img_contours, (x, y), (x + w, y + h), (0, 255, 0), 2)
+
+cv2.imwrite("boxes.png", img_contours)
+
+# Etapa 3 - Segmentação do caractere
+# Criando uma lista para armazenar os caracteres segmentados
+char_list = []
+pre_sort_list = []
+
+
+# Recebendo valores de posições e tamanhos
+for cnt in contours:
+    x, y, w, h = cv2.boundingRect(cnt)
+    pre_sort_list.append([y, x, w, h])
+
+pre_sort2_list = sorted(pre_sort_list)
+
+
+# Organizando vetor de acordo com suas posições
+yFirst = True
+aux = []
+sort_list = []
+for cnt in pre_sort2_list:
+    if (yFirst):
+        yCurrent = cnt[0]
+        yFirst = False
+    if ((cnt[0] - yCurrent) < 20):
+        aux.append([cnt[1], cnt[0], cnt[2], cnt[3]])
+    else:
+        sort_list.append(sorted(aux))
+        aux = []
+        aux.append([cnt[1], cnt[0], cnt[2], cnt[3]])
+    yCurrent = cnt[0]
+sort_list.append(sorted(aux))
+
+
+# Iterando pelos contornos encontrados na imagem
+for line in sort_list:
+    for word in line:
+        x, y, w, h = word
+        # Recortando a região delimitada pelo contorno
+        roi = gray[y:y+h, x:x+w]
+        # Armazenando a região recortada na lista de caracteres
+        char_list.append(roi)
+
+# Etapa 4 - Reconhecimento do caractere
+# Criando uma string para armazenar os caracteres reconhecidos pelo Tesseract
+text = ""
+
+# Iterando pelos caracteres armazenados na lista
+for char in char_list:
+    # Realizando o OCR com o Tesseract
+    char_text = pytesseract.image_to_string(
+        char, lang='eng+por', config="--psm 8")
+
+# Adicionando o resultado ao texto final
+    text += char_text.strip('\x0c').strip('\n').strip(' ') + ' '
+
+# Etapa 5 - Pós-Processamento
+# Imprimindo o resultado na tela
+print("Texto Reconhecido:")
+print(f"'{text.capitalize()}'")
